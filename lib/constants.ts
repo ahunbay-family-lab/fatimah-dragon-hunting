@@ -1,3 +1,3 @@
-export const SITE_NAME = "Family Lab";
+export const SITE_NAME = "Jungle Dragon Quest";
 export const SITE_DESCRIPTION =
-  "A fun starter app for building projects in the Ahunbay Family Lab.";
+  "A jungle adventure game where a brave girl befriends flying dragons, rides the skies, and seeks the legendary Mystery Dragon.";

@@ -61,3 +61,59 @@ body {
 .animate-pop {
   animation: pop 0.35s ease-out;
 }
+
+@keyframes creep {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(2px) rotate(2deg);
+  }
+}
+
+@keyframes ride-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes dragon-fly {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(2deg);
+  }
+}
+
+@keyframes gift-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-20px) scale(1.1);
+  }
+}
+
+.animate-creep {
+  animation: creep 0.8s ease-in-out infinite;
+}
+
+.animate-ride-bob {
+  animation: ride-bob 1.5s ease-in-out infinite;
+}
+
+.animate-dragon-fly {
+  animation: dragon-fly 2s ease-in-out infinite;
+}
+
+.animate-gift-bounce {
+  animation: gift-bounce 1.2s ease-in-out infinite;
+}
