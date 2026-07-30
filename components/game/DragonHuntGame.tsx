@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Dragon, DragonColor, GamePhase } from "@/lib/game/types";
+import type { Dragon, DragonColor, GamePhase, Position } from "@/lib/game/types";
 import {
   DRAGON_PALETTE,
   MAX_DRAGON_COUNT,
@@ -16,8 +16,60 @@ import {
   JungleBackground,
 } from "./Characters";
 
+const NEAR_DRAGON_DISTANCE = 24;
+const TOUCH_DRAGON_DISTANCE = 10;
+const CLUE_REACH_DISTANCE = 14;
+const GIRL_START: Position = { x: 18, y: 68 };
+const MOVE_SPEED = 2.2;
+const CREEP_SPEED = 1.1;
+const FLY_SPEED = 2.8;
+
 function uid() {
   return Math.random().toString(36).slice(2, 9);
+}
+
+function distance(a: Position, b: Position) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function randomDragonSpot(): Position {
+  return {
+    x: 58 + Math.random() * 30,
+    y: 22 + Math.random() * 30,
+  };
+}
+
+function randomClueSpot(): Position {
+  return {
+    x: 20 + Math.random() * 60,
+    y: 18 + Math.random() * 45,
+  };
+}
+
+function moveToward(from: Position, to: Position, amount: number): Position {
+  const dist = distance(from, to);
+  if (dist <= amount || dist === 0) return { ...to };
+  const ratio = amount / dist;
+  return {
+    x: from.x + (to.x - from.x) * ratio,
+    y: from.y + (to.y - from.y) * ratio,
+  };
+}
+
+function clampPosition(pos: Position): Position {
+  return {
+    x: Math.max(6, Math.min(94, pos.x)),
+    y: Math.max(18, Math.min(88, pos.y)),
+  };
+}
+
+function applyArrowDelta(pos: Position, keys: Set<string>, speed: number): Position {
+  let { x, y } = pos;
+  if (keys.has("ArrowUp")) y -= speed;
+  if (keys.has("ArrowDown")) y += speed;
+  if (keys.has("ArrowLeft")) x -= speed;
+  if (keys.has("ArrowRight")) x += speed;
+  return clampPosition({ x, y });
 }
 
 export function DragonHuntGame() {
@@ -30,106 +82,64 @@ export function DragonHuntGame() {
   } | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [message, setMessage] = useState(STORY.intro);
-  const [creepProgress, setCreepProgress] = useState(0);
+  const [girlPos, setGirlPos] = useState<Position>(GIRL_START);
+  const [wildDragonPos, setWildDragonPos] = useState<Position | null>(null);
+  const [clueMarkerPos, setClueMarkerPos] = useState<Position | null>(null);
   const [alertLevel, setAlertLevel] = useState(0);
   const [touchZone] = useState(50);
   const [touchIndicator, setTouchIndicator] = useState(0);
   const [trustLevel, setTrustLevel] = useState(0);
   const [clueIndex, setClueIndex] = useState(0);
-  const [searchProgress, setSearchProgress] = useState(0);
   const [showGift, setShowGift] = useState(false);
 
-  const creepInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const keysRef = useRef<Set<string>>(new Set());
   const touchInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const searchInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const touchDirectionRef = useRef(1);
+  const touchIndicatorRef = useRef(0);
+  const clueReachedRef = useRef(false);
+  const phaseRef = useRef(phase);
+  const girlPosRef = useRef(girlPos);
+  const wildDragonPosRef = useRef(wildDragonPos);
+  const clueMarkerPosRef = useRef(clueMarkerPos);
+  const clueIndexRef = useRef(clueIndex);
 
   const activeDragon = dragons.find((d) => d.id === activeDragonId) ?? null;
-  const usedColors = new Set(dragons.map((d) => d.color));
 
-  const clearTimers = useCallback(() => {
-    if (creepInterval.current) clearInterval(creepInterval.current);
+  useEffect(() => {
+    phaseRef.current = phase;
+    girlPosRef.current = girlPos;
+    wildDragonPosRef.current = wildDragonPos;
+    clueMarkerPosRef.current = clueMarkerPos;
+    clueIndexRef.current = clueIndex;
+  }, [phase, girlPos, wildDragonPos, clueMarkerPos, clueIndex]);
+
+  const clearTouchTimer = useCallback(() => {
     if (touchInterval.current) clearInterval(touchInterval.current);
-    if (searchInterval.current) clearInterval(searchInterval.current);
-    creepInterval.current = null;
     touchInterval.current = null;
-    searchInterval.current = null;
   }, []);
 
-  useEffect(() => () => clearTimers(), [clearTimers]);
+  useEffect(() => () => clearTouchTimer(), [clearTouchTimer]);
+
+  const spawnWildDragon = useCallback(() => {
+    const taken = new Set(dragons.map((d) => d.color));
+    const available = WILD_DRAGON_COLORS.filter((c) => !taken.has(c));
+    const color =
+      available[Math.floor(Math.random() * available.length)] ?? "emerald";
+    setPendingDragon({ color, id: uid() });
+    setWildDragonPos(randomDragonSpot());
+  }, [dragons]);
 
   const startExploring = () => {
-    clearTimers();
+    clearTouchTimer();
     setPhase("exploring");
     setMessage(STORY.exploring);
-    setSearchProgress(0);
-    setCreepProgress(0);
+    setGirlPos(GIRL_START);
     setAlertLevel(0);
     setTrustLevel(0);
-    setPendingDragon(null);
+    spawnWildDragon();
   };
 
-  const beginSearch = () => {
-    if (searchInterval.current) return;
-    searchInterval.current = setInterval(() => {
-      setSearchProgress((p) => {
-        const next = p + 2;
-        if (next >= 100) {
-          clearTimers();
-          const available = WILD_DRAGON_COLORS.filter((c) => !usedColors.has(c));
-          const color =
-            available[Math.floor(Math.random() * available.length)] ?? "emerald";
-          const id = uid();
-          setPendingDragon({ color, id });
-          setPhase("creeping");
-          setMessage(STORY.creeping);
-          setCreepProgress(0);
-          setAlertLevel(20);
-          return 100;
-        }
-        return next;
-      });
-    }, 80);
-  };
-
-  const stopSearch = () => {
-    if (searchInterval.current) {
-      clearInterval(searchInterval.current);
-      searchInterval.current = null;
-    }
-  };
-
-  const startCreeping = () => {
-    if (creepInterval.current) return;
-    creepInterval.current = setInterval(() => {
-      setCreepProgress((p) => {
-        const next = Math.min(100, p + 1.5);
-        if (next >= 100) {
-          clearTimers();
-          setPhase("touching");
-          setMessage(STORY.touching);
-          setTrustLevel(0);
-          startTouchGame();
-          return 100;
-        }
-        return next;
-      });
-      setAlertLevel((a) => {
-        const spike = Math.random() < 0.08 ? 25 : -3;
-        return Math.max(0, Math.min(100, a + spike));
-      });
-    }, 60);
-  };
-
-  const stopCreeping = () => {
-    if (creepInterval.current) {
-      clearInterval(creepInterval.current);
-      creepInterval.current = null;
-    }
-  };
-
-  const touchDirectionRef = useRef(1);
-
-  const startTouchGame = () => {
+  const startTouchGame = useCallback(() => {
     setTouchIndicator(0);
     touchDirectionRef.current = 1;
     setTrustLevel(0);
@@ -144,18 +154,20 @@ export function DragonHuntGame() {
           touchDirectionRef.current = 1;
           next = 0;
         }
+        touchIndicatorRef.current = next;
         return next;
       });
     }, 40);
-  };
+  }, []);
 
-  const gentleTouch = () => {
-    const inZone = Math.abs(touchIndicator - touchZone) < 12;
+  const gentleTouch = useCallback(() => {
+    if (phaseRef.current !== "touching") return;
+    const inZone = Math.abs(touchIndicatorRef.current - touchZone) < 12;
     if (inZone) {
       setTrustLevel((m) => {
         const next = m + 20;
         if (next >= 100) {
-          clearTimers();
+          clearTouchTimer();
           setPhase("naming");
           setMessage(STORY.naming);
           setNameInput("");
@@ -166,7 +178,132 @@ export function DragonHuntGame() {
       setAlertLevel((a) => Math.min(100, a + 15));
       setTrustLevel((m) => Math.max(0, m - 8));
     }
-  };
+  }, [clearTouchTimer, touchZone]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown" ||
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight"
+      ) {
+        e.preventDefault();
+        keysRef.current.add(e.key);
+      }
+      if (e.key === " " && phaseRef.current === "touching") {
+        e.preventDefault();
+        gentleTouch();
+      }
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      keysRef.current.delete(e.key);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [gentleTouch]);
+
+  useEffect(() => {
+    let frame = 0;
+
+    const tick = () => {
+      const keys = keysRef.current;
+      const currentPhase = phaseRef.current;
+      const hasMovementKeys =
+        keys.has("ArrowUp") ||
+        keys.has("ArrowDown") ||
+        keys.has("ArrowLeft") ||
+        keys.has("ArrowRight");
+
+      if (hasMovementKeys) {
+        if (
+          currentPhase === "exploring" ||
+          currentPhase === "mysteryHunt" ||
+          (currentPhase === "firstRide" && activeDragonId)
+        ) {
+          const speed =
+            currentPhase === "mysteryHunt" || currentPhase === "firstRide"
+              ? FLY_SPEED
+              : MOVE_SPEED;
+          setGirlPos((pos) => clampPosition(applyArrowDelta(pos, keys, speed)));
+        }
+
+        if (currentPhase === "creeping" && wildDragonPosRef.current) {
+          if (keys.has("ArrowUp")) {
+            setGirlPos((pos) => {
+              const next = moveToward(pos, wildDragonPosRef.current!, CREEP_SPEED);
+              setAlertLevel((a) => Math.max(0, Math.min(100, a - 1)));
+              return next;
+            });
+          } else if (
+            keys.has("ArrowDown") ||
+            keys.has("ArrowLeft") ||
+            keys.has("ArrowRight")
+          ) {
+            setAlertLevel((a) => Math.min(100, a + 2));
+          }
+        }
+      }
+
+      if (currentPhase === "creeping" && !hasMovementKeys) {
+        setAlertLevel((a) => Math.max(0, a - 0.5));
+      }
+
+      if (currentPhase === "exploring" && wildDragonPosRef.current) {
+        const dist = distance(girlPosRef.current, wildDragonPosRef.current);
+        if (dist <= NEAR_DRAGON_DISTANCE) {
+          phaseRef.current = "creeping";
+          setPhase("creeping");
+          setMessage(STORY.creeping);
+          setAlertLevel(15);
+        }
+      }
+
+      if (currentPhase === "creeping" && wildDragonPosRef.current) {
+        const dist = distance(girlPosRef.current, wildDragonPosRef.current);
+        if (dist <= TOUCH_DRAGON_DISTANCE) {
+          phaseRef.current = "touching";
+          clearTouchTimer();
+          setPhase("touching");
+          setMessage(STORY.touching);
+          setTrustLevel(0);
+          startTouchGame();
+        }
+      }
+
+      if (currentPhase === "mysteryHunt" && clueMarkerPosRef.current) {
+        const dist = distance(girlPosRef.current, clueMarkerPosRef.current);
+        if (dist <= CLUE_REACH_DISTANCE && !clueReachedRef.current) {
+          clueReachedRef.current = true;
+          if (clueIndexRef.current < MYSTERY_CLUES.length - 1) {
+            const nextClue = clueIndexRef.current + 1;
+            clueIndexRef.current = nextClue;
+            setClueIndex(nextClue);
+            setMessage(MYSTERY_CLUES[nextClue].text);
+            setClueMarkerPos(randomClueSpot());
+          } else {
+            phaseRef.current = "mysteryFound";
+            setPhase("mysteryFound");
+            setMessage(STORY.mysteryFound);
+            setClueMarkerPos(null);
+          }
+        } else if (dist > CLUE_REACH_DISTANCE + 4) {
+          clueReachedRef.current = false;
+        }
+      }
+
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [activeDragonId, clearTouchTimer, startTouchGame]);
 
   const confirmName = () => {
     if (!pendingDragon || !nameInput.trim()) return;
@@ -179,6 +316,7 @@ export function DragonHuntGame() {
     const updated = [...dragons, newDragon];
     setDragons(updated);
     setActiveDragonId(newDragon.id);
+    setWildDragonPos(null);
 
     if (updated.length === 1) {
       setPhase("firstRide");
@@ -202,6 +340,7 @@ export function DragonHuntGame() {
     );
     setPhase("sanctuary");
     setMessage(STORY.sanctuary);
+    setGirlPos({ x: 30, y: 72 });
   };
 
   const continueAfterSanctuary = () => {
@@ -226,43 +365,16 @@ export function DragonHuntGame() {
     setActiveDragonId(id);
     setPhase("dragonKing");
     setMessage(STORY.dragonKing);
+    setGirlPos({ x: 45, y: 55 });
   };
 
   const beginMysteryHunt = () => {
+    clueReachedRef.current = false;
     setClueIndex(0);
     setPhase("mysteryHunt");
     setMessage(MYSTERY_CLUES[0].text);
-    setSearchProgress(0);
-  };
-
-  const followClue = () => {
-    if (searchInterval.current) return;
-    searchInterval.current = setInterval(() => {
-      setSearchProgress((p) => {
-        const next = p + 3;
-        if (next >= 100) {
-          clearTimers();
-          setSearchProgress(0);
-          if (clueIndex < MYSTERY_CLUES.length - 1) {
-            const nextClue = clueIndex + 1;
-            setClueIndex(nextClue);
-            setMessage(MYSTERY_CLUES[nextClue].text);
-          } else {
-            setPhase("mysteryFound");
-            setMessage(STORY.mysteryFound);
-          }
-          return 0;
-        }
-        return next;
-      });
-    }, 70);
-  };
-
-  const stopFollowClue = () => {
-    if (searchInterval.current) {
-      clearInterval(searchInterval.current);
-      searchInterval.current = null;
-    }
+    setClueMarkerPos(randomClueSpot());
+    setGirlPos({ x: 20, y: 60 });
   };
 
   const bringToKing = () => {
@@ -272,18 +384,20 @@ export function DragonHuntGame() {
   };
 
   const resetGame = () => {
-    clearTimers();
+    clearTouchTimer();
+    keysRef.current.clear();
     setPhase("intro");
     setDragons([]);
     setActiveDragonId(null);
     setPendingDragon(null);
     setNameInput("");
     setMessage(STORY.intro);
-    setCreepProgress(0);
+    setGirlPos(GIRL_START);
+    setWildDragonPos(null);
+    setClueMarkerPos(null);
     setAlertLevel(0);
     setTrustLevel(0);
     setClueIndex(0);
-    setSearchProgress(0);
     setShowGift(false);
   };
 
@@ -304,124 +418,160 @@ export function DragonHuntGame() {
           ? "sky"
           : "ground";
 
+  const showGirlOnMap =
+    phase !== "chooseRide" && phase !== "naming" && phase !== "ending";
+
+  const dragonDistance =
+    wildDragonPos && (phase === "exploring" || phase === "creeping" || phase === "touching")
+      ? distance(girlPos, wildDragonPos)
+      : null;
+
+  const creepProgress =
+    dragonDistance !== null
+      ? Math.max(0, Math.min(100, ((NEAR_DRAGON_DISTANCE - dragonDistance) / NEAR_DRAGON_DISTANCE) * 100))
+      : 0;
+
   return (
     <div className="relative mx-auto flex min-h-[640px] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border-4 border-emerald-900/30 shadow-2xl">
-      {/* Game viewport */}
-      <div className="relative h-[420px] w-full overflow-hidden">
+      <div className="relative h-[460px] w-full overflow-hidden">
         <JungleBackground variant={bgVariant} />
 
-        {/* Scene characters */}
-        <div className="relative z-10 flex h-full items-end justify-center pb-8">
-          {phase === "dragonKing" && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2">
-              <DragonCharacter color="amber" size="king" flying className="drop-shadow-2xl" />
-              <p className="mt-2 text-center text-sm font-bold text-amber-200 drop-shadow">
-                Dragon King
-              </p>
+        {/* Clue marker */}
+        {phase === "mysteryHunt" && clueMarkerPos && (
+          <MapEntity pos={clueMarkerPos} className="z-20">
+            <div className="flex flex-col items-center">
+              <span className="animate-pulse text-4xl">✨</span>
+              <span className="rounded-full bg-violet-600/90 px-2 py-0.5 text-xs font-bold text-white">
+                Clue
+              </span>
             </div>
-          )}
+          </MapEntity>
+        )}
 
-          {phase === "mysteryFound" && (
-            <div className="absolute top-16 right-[20%]">
-              <DragonCharacter color="mystery" size="md" flying />
-            </div>
-          )}
+        {/* Dragon King */}
+        {phase === "dragonKing" && (
+          <MapEntity pos={{ x: 50, y: 12 }} className="z-20">
+            <DragonCharacter color="amber" size="king" flying className="drop-shadow-2xl" />
+            <p className="text-center text-sm font-bold text-amber-200 drop-shadow">Dragon King</p>
+          </MapEntity>
+        )}
 
-          {phase === "ending" && showGift && (
-            <div className="absolute top-12 animate-gift-bounce text-6xl">👑</div>
-          )}
+        {/* Mystery dragon */}
+        {(phase === "mysteryFound" || (phase === "ending" && showGift)) && (
+          <MapEntity pos={{ x: 72, y: 28 }} className="z-20">
+            <DragonCharacter color="mystery" size="lg" flying />
+          </MapEntity>
+        )}
 
-          {/* Wild dragon during creep/touch */}
-          {(phase === "creeping" || phase === "touching") && pendingDragon && (
-            <div
-              className="absolute transition-all duration-300"
-              style={{ right: `${20 - creepProgress * 0.12}%`, bottom: "18%" }}
-            >
-              <DragonCharacter
-                color={pendingDragon.color}
-                size="lg"
-                facing="left"
-              />
-              {phase === "touching" && (
-                <div className="absolute -right-2 top-8 h-4 w-4 animate-pulse rounded-full bg-pink-300 ring-2 ring-pink-400" />
-              )}
-            </div>
-          )}
+        {phase === "ending" && showGift && (
+          <MapEntity pos={{ x: 50, y: 20 }} className="z-30">
+            <span className="animate-gift-bounce text-6xl">👑</span>
+          </MapEntity>
+        )}
 
-          {/* Girl */}
-          <div
-            className="absolute transition-all duration-500"
-            style={{
-              left:
-                phase === "creeping" || phase === "touching"
-                  ? `${15 + creepProgress * 0.35}%`
-                  : "45%",
-              bottom: isFlying ? "35%" : "12%",
-            }}
-          >
-            {isFlying && activeDragon ? (
-              <div className="relative">
-                <DragonCharacter
-                  color={activeDragon.color}
-                  size="lg"
-                  flying
-                  className="absolute -top-16 -left-8"
-                />
-                <GirlCharacter riding size="sm" className="relative z-10 ml-8" />
-              </div>
-            ) : (
-              <GirlCharacter
-                creeping={phase === "creeping"}
-                size="md"
-              />
+        {/* Wild dragon — visible while searching */}
+        {wildDragonPos && pendingDragon && (
+          <MapEntity pos={wildDragonPos} className="z-10">
+            <DragonCharacter
+              color={pendingDragon.color}
+              size="lg"
+              flying={phase === "exploring"}
+              facing="left"
+            />
+            {phase === "touching" && (
+              <div className="absolute right-0 top-6 h-5 w-5 animate-pulse rounded-full bg-pink-300 ring-2 ring-pink-400" />
             )}
-          </div>
+            <p className="text-center text-xs font-bold text-white drop-shadow">
+              Wild Dragon
+            </p>
+          </MapEntity>
+        )}
 
-          {/* Sanctuary dragons */}
-          {phase === "sanctuary" && (
-            <div className="absolute bottom-[20%] flex gap-6">
-              {dragons
-                .filter((d) => d.atSanctuary)
-                .map((d) => (
-                  <div key={d.id} className="text-center">
-                    <DragonCharacter color={d.color} size="sm" />
-                    <p className="text-xs font-semibold text-white drop-shadow">
-                      {d.name}
-                    </p>
-                  </div>
-                ))}
+        {/* Sanctuary dragons */}
+        {phase === "sanctuary" &&
+          dragons
+            .filter((d) => d.atSanctuary)
+            .map((d, i) => (
+              <MapEntity
+                key={d.id}
+                pos={{ x: 22 + i * 18, y: 58 }}
+                className="z-10"
+              >
+                <DragonCharacter color={d.color} size="md" />
+                <p className="text-center text-xs font-bold text-white drop-shadow">{d.name}</p>
+              </MapEntity>
+            ))}
+
+        {/* Befriended dragons riding with girl */}
+        {isFlying && activeDragon && showGirlOnMap && (
+          <MapEntity pos={girlPos} className="z-20 -translate-x-1/2 -translate-y-1/2">
+            <div className="relative flex flex-col items-center">
+              <DragonCharacter
+                color={activeDragon.color}
+                size="lg"
+                flying
+                className="-mb-4"
+              />
+              <GirlCharacter riding size="sm" className="relative z-10" />
             </div>
-          )}
-        </div>
+          </MapEntity>
+        )}
 
-        {/* Alert overlay */}
+        {/* Girl on foot */}
+        {showGirlOnMap && !isFlying && (
+          <MapEntity pos={girlPos} className="z-20 -translate-x-1/2 -translate-y-full">
+            <GirlCharacter
+              creeping={phase === "creeping"}
+              size="lg"
+            />
+          </MapEntity>
+        )}
+
+        {/* Intro preview */}
+        {phase === "intro" && (
+          <MapEntity pos={{ x: 50, y: 55 }} className="z-20 -translate-x-1/2 -translate-y-full">
+            <GirlCharacter size="lg" />
+          </MapEntity>
+        )}
+
+        {phase === "intro" && (
+          <MapEntity pos={{ x: 72, y: 35 }} className="z-10">
+            <DragonCharacter color="emerald" size="lg" flying />
+          </MapEntity>
+        )}
+
         {phase === "creeping" && alertLevel > 60 && (
-          <div className="absolute inset-0 z-20 flex items-start justify-center pt-6">
+          <div className="absolute inset-0 z-30 flex items-start justify-center pt-6">
             <span className="animate-pulse rounded-full bg-red-500/80 px-4 py-1 text-sm font-bold text-white">
-              Shhh! The dragon is getting nervous!
+              Shhh! Move slowly with the UP arrow!
             </span>
+          </div>
+        )}
+
+        {/* Arrow key hint overlay */}
+        {["exploring", "creeping", "mysteryHunt", "firstRide"].includes(phase) && (
+          <div className="absolute bottom-3 left-3 z-30 rounded-xl bg-black/50 px-3 py-2 text-xs text-white backdrop-blur-sm">
+            <p className="font-bold">Arrow keys</p>
+            <p className="text-white/80">↑ ↓ ← → to move</p>
+            {phase === "touching" && <p className="text-pink-200">SPACE to touch snout</p>}
           </div>
         )}
       </div>
 
-      {/* HUD */}
       <div className="flex flex-1 flex-col gap-4 bg-gradient-to-b from-emerald-950 to-emerald-900 p-5 text-white">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-extrabold text-emerald-100 sm:text-xl">
             Jungle Dragon Quest
           </h1>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="rounded-full bg-emerald-800 px-3 py-1">
-              Dragons: {dragons.length}/{MAX_DRAGON_COUNT}
-            </span>
-          </div>
+          <span className="rounded-full bg-emerald-800 px-3 py-1 text-sm">
+            Dragons: {dragons.length}/{MAX_DRAGON_COUNT}
+          </span>
         </div>
 
         <p className="min-h-[3rem] text-sm leading-relaxed text-emerald-100/90 sm:text-base">
           {message}
         </p>
 
-        {/* Dragon roster */}
         {dragons.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {dragons.map((d) => (
@@ -443,42 +593,33 @@ export function DragonHuntGame() {
           </div>
         )}
 
-        {/* Phase controls */}
         <div className="mt-auto flex flex-wrap gap-3">
           {phase === "intro" && (
             <ActionButton onClick={startExploring}>Begin Adventure</ActionButton>
           )}
 
           {phase === "exploring" && (
-            <>
-              <HoldButton onHold={beginSearch} onRelease={stopSearch}>
-                Search Jungle
-              </HoldButton>
-              <ProgressBar label="Searching" value={searchProgress} color="emerald" />
-            </>
+            <p className="text-sm text-emerald-300">
+              Walk toward the dragon on the map using your arrow keys.
+            </p>
           )}
 
           {phase === "creeping" && (
             <>
-              <HoldButton onHold={startCreeping} onRelease={stopCreeping}>
-                Creep Forward
-              </HoldButton>
-              <ProgressBar label="Distance" value={creepProgress} color="teal" />
-              <ProgressBar label="Alert" value={alertLevel} color="red" />
+              <ProgressBar label="How close you are" value={creepProgress} color="teal" />
+              <ProgressBar label="Dragon alert" value={alertLevel} color="red" />
             </>
           )}
 
           {phase === "touching" && (
-            <>
-              <ActionButton onClick={gentleTouch}>Gently Touch Snout</ActionButton>
-              <div className="w-full space-y-2">
-                <p className="text-xs text-emerald-300">
-                  Tap when the marker is in the green zone!
-                </p>
-                <TouchMeter value={touchIndicator} zone={touchZone} />
-                <ProgressBar label="Trust" value={trustLevel} color="pink" />
-              </div>
-            </>
+            <div className="w-full space-y-2">
+              <p className="text-xs text-emerald-300">
+                Press SPACE when the pink marker is in the green zone!
+              </p>
+              <TouchMeter value={touchIndicator} zone={touchZone} />
+              <ProgressBar label="Trust" value={trustLevel} color="pink" />
+              <ActionButton onClick={gentleTouch}>Gently Touch Snout (Space)</ActionButton>
+            </div>
           )}
 
           {phase === "naming" && pendingDragon && (
@@ -499,9 +640,7 @@ export function DragonHuntGame() {
           )}
 
           {phase === "firstRide" && (
-            <ActionButton onClick={continueAfterFirstRide}>
-              Fly On!
-            </ActionButton>
+            <ActionButton onClick={continueAfterFirstRide}>Fly On!</ActionButton>
           )}
 
           {phase === "chooseRide" && (
@@ -515,9 +654,7 @@ export function DragonHuntGame() {
           )}
 
           {phase === "sanctuary" && (
-            <ActionButton onClick={continueAfterSanctuary}>
-              Find More Dragons
-            </ActionButton>
+            <ActionButton onClick={continueAfterSanctuary}>Find More Dragons</ActionButton>
           )}
 
           {phase === "collectionComplete" && (
@@ -541,18 +678,10 @@ export function DragonHuntGame() {
           )}
 
           {phase === "mysteryHunt" && (
-            <>
-              <HoldButton onHold={followClue} onRelease={stopFollowClue}>
-                Follow Clue
-              </HoldButton>
-              <ProgressBar label="Searching" value={searchProgress} color="violet" />
-              <p className="w-full text-xs text-violet-300">
-                Hint: {MYSTERY_CLUES[clueIndex].hint}
-              </p>
-              <p className="text-xs text-emerald-400">
-                Clue {clueIndex + 1} of {MYSTERY_CLUES.length}
-              </p>
-            </>
+            <p className="w-full text-xs text-violet-300">
+              Hint: {MYSTERY_CLUES[clueIndex].hint} — Clue {clueIndex + 1} of{" "}
+              {MYSTERY_CLUES.length}
+            </p>
           )}
 
           {phase === "mysteryFound" && (
@@ -574,6 +703,25 @@ export function DragonHuntGame() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function MapEntity({
+  pos,
+  children,
+  className = "",
+}: {
+  pos: Position;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`absolute ${className}`}
+      style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+    >
+      {children}
     </div>
   );
 }
@@ -602,30 +750,6 @@ function ActionButton({
       className={`rounded-xl px-5 py-2.5 text-sm font-bold shadow-lg transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${base}`}
     >
       {children}
-    </button>
-  );
-}
-
-function HoldButton({
-  children,
-  onHold,
-  onRelease,
-}: {
-  children: React.ReactNode;
-  onHold: () => void;
-  onRelease: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onMouseDown={onHold}
-      onMouseUp={onRelease}
-      onMouseLeave={onRelease}
-      onTouchStart={onHold}
-      onTouchEnd={onRelease}
-      className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 px-5 py-2.5 text-sm font-bold text-white shadow-lg transition active:scale-95"
-    >
-      {children} (hold)
     </button>
   );
 }

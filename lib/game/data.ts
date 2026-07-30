@@ -80,11 +80,12 @@ export const MYSTERY_CLUES: MysteryClue[] = [
 export const STORY = {
   intro:
     "Deep in the emerald jungle, a brave girl with a ponytail searches for legendary flying dragons. Creep close, touch their snouts gently, earn their trust, and ride the skies!",
-  exploring: "Search the jungle canopy for a flying dragon resting among the trees…",
+  exploring:
+    "Use the arrow keys to walk through the jungle. Walk toward the dragon you see on the map!",
   creeping:
-    "A dragon is nearby! Creep forward slowly — don't startle it!",
+    "You're close! Press the UP arrow to creep toward the dragon slowly — don't startle it!",
   touching:
-    "You're close! Gently touch the dragon's snout when the heart glows soft green.",
+    "Press SPACE when the pink marker is in the green zone to gently touch the dragon's snout.",
   naming: "The dragon likes you! Give your new friend a name.",
   firstRide: "Your dragon spreads its wings! Soar through the jungle sky!",
   chooseRide:
@@ -96,7 +97,7 @@ export const STORY = {
   dragonKing:
     "The Dragon King rises from the clouds — enormous and wise. He grants you a mystery dragon hunt!",
   mysteryHunt:
-    "Follow the clues while riding your dragon to find the legendary Mystery Dragon.",
+    "Use the arrow keys to fly toward each clue marker in the sky.",
   mysteryFound:
     "You found the Mystery Dragon! Bring it to the Dragon King.",
   ending:
