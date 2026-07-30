@@ -21,6 +21,11 @@ export type DragonColor =
   | "violet"
   | "mystery";
 
+export interface Position {
+  x: number;
+  y: number;
+}
+
 export interface Dragon {
   id: string;
   name: string;

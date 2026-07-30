@@ -14,13 +14,13 @@ export function GirlCharacter({
   riding = false,
   size = "md",
 }: GirlCharacterProps) {
-  const scale = size === "sm" ? 0.7 : size === "lg" ? 1.2 : 1;
+  const sizeClass =
+    size === "sm" ? "h-24 w-16" : size === "lg" ? "h-44 w-28" : "h-36 w-24";
 
   return (
     <svg
       viewBox="0 0 80 120"
-      className={`${className} ${creeping ? "animate-creep" : riding ? "animate-ride-bob" : ""}`}
-      style={{ transform: `scale(${scale})` }}
+      className={`${sizeClass} ${className} ${creeping ? "animate-creep" : riding ? "animate-ride-bob" : ""}`}
       aria-hidden="true"
     >
       {/* Ponytail */}
@@ -94,15 +94,20 @@ export function DragonCharacter({
   facing = "right",
 }: DragonCharacterProps) {
   const palette = DRAGON_PALETTE[color];
-  const scale =
-    size === "sm" ? 0.6 : size === "lg" ? 1.3 : size === "king" ? 2.2 : 1;
-  const flip = facing === "left" ? "scaleX(-1)" : "";
+  const sizeClass =
+    size === "sm"
+      ? "h-16 w-28"
+      : size === "lg"
+        ? "h-28 w-44"
+        : size === "king"
+          ? "h-52 w-80"
+          : "h-24 w-36";
+  const flip = facing === "left" ? "scale-x-[-1]" : "";
 
   return (
     <svg
       viewBox="0 0 160 100"
-      className={`${className} ${flying ? "animate-dragon-fly" : ""}`}
-      style={{ transform: `${flip} scale(${scale})` }}
+      className={`${sizeClass} ${flip} ${className} ${flying ? "animate-dragon-fly" : ""}`}
       aria-hidden="true"
     >
       {/* Tail */}
