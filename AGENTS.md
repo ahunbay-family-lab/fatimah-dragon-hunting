@@ -22,6 +22,19 @@ When a child asks "make me a game," start by asking what kind of game, what the 
 
 ---
 
+## Current Project: Jungle Dragon Quest
+
+This repo is being used to build a specific game called **Jungle Dragon
+Quest**, designed together with a 10-year-old.
+
+**Before touching any game code, read [`docs/game-design.md`](./docs/game-design.md).**
+It is the source of truth for the game's design and contains a phased build
+plan with checkboxes tracking what's already been built. Always check which
+phase is next before starting new work, and update the checkbox when a phase
+is complete.
+
+---
+
 ## Project Overview
 
 This is a **Next.js** starter template for the [Ahunbay Family Lab](https://github.com/ahunbay-family-lab) organization.
