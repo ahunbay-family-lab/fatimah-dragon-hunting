@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * Pre-redesign prototype, kept around for reference while we rebuild the
+ * game phase by phase per docs/game-design.md. The final design has no
+ * visible girl sprite and uses scene-to-scene navigation instead of
+ * free-roam movement, so this file is not wired into the app right now —
+ * expect it to be refactored/replaced as later phases land.
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dragon, DragonColor, GamePhase, Position } from "@/lib/game/types";
 import {
