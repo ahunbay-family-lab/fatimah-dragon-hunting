@@ -117,3 +117,27 @@ body {
 .animate-gift-bounce {
   animation: gift-bounce 1.2s ease-in-out infinite;
 }
+
+@keyframes firefly {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translate(6px, -10px);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-4px, -4px);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translate(4px, 6px);
+    opacity: 1;
+  }
+}
+
+.animate-firefly {
+  animation: firefly 4s ease-in-out infinite;
+}
