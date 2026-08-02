@@ -1,11 +1,5 @@
-const FIREFLIES = [
-  { left: "12%", top: "20%", delay: "0s" },
-  { left: "85%", top: "15%", delay: "0.8s" },
-  { left: "22%", top: "55%", delay: "1.6s" },
-  { left: "70%", top: "40%", delay: "2.2s" },
-  { left: "45%", top: "65%", delay: "0.4s" },
-  { left: "92%", top: "60%", delay: "1.1s" },
-];
+import { Fireflies } from "./Fireflies";
+import { JungleBackdrop } from "./JungleBackdrop";
 
 /**
  * Hand-drawn cartoon jungle scene for the title screen: warm sky, layered
@@ -16,42 +10,14 @@ const FIREFLIES = [
 export function JungleTitleArt() {
   return (
     <div className="absolute inset-0 overflow-hidden">
+      <JungleBackdrop gradientId="title-sky" />
+
       <svg
         viewBox="0 0 400 300"
         preserveAspectRatio="xMidYMax slice"
-        className="h-full w-full"
+        className="absolute inset-0 h-full w-full"
         aria-hidden="true"
       >
-        <defs>
-          <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#7dd3fc" />
-            <stop offset="60%" stopColor="#ffe8a3" />
-            <stop offset="100%" stopColor="#ffd166" />
-          </linearGradient>
-        </defs>
-
-        <rect x="0" y="0" width="400" height="300" fill="url(#sky)" />
-
-        {/* Sun with a soft glow */}
-        <circle cx="325" cy="55" r="46" fill="#fff3bf" opacity="0.5" />
-        <circle cx="325" cy="55" r="30" fill="#ffd60a" />
-
-        {/* Far hills */}
-        <path
-          d="M0 175 Q60 140 130 168 Q210 190 280 155 Q340 130 400 165 L400 300 L0 300 Z"
-          fill="#74c69d"
-        />
-        {/* Mid hills */}
-        <path
-          d="M0 205 Q80 165 160 195 Q230 215 300 180 Q350 160 400 190 L400 300 L0 300 Z"
-          fill="#40916c"
-        />
-        {/* Near hills */}
-        <path
-          d="M0 240 Q90 200 190 230 Q260 250 330 215 Q365 200 400 220 L400 300 L0 300 Z"
-          fill="#1b4332"
-        />
-
         {/* Winding dirt trail */}
         <path
           d="M170 300 Q160 260 190 235 Q220 210 205 180 Q195 155 215 130"
@@ -104,14 +70,7 @@ export function JungleTitleArt() {
         <path d="M740 90 L746 44 Q762 22 774 50 Q784 28 796 55 L800 90" fill="#166534" />
       </svg>
 
-      {/* Twinkling fireflies */}
-      {FIREFLIES.map((fly, i) => (
-        <span
-          key={i}
-          className="animate-firefly absolute h-2 w-2 rounded-full bg-amber-200 shadow-[0_0_8px_3px_rgba(253,224,71,0.7)]"
-          style={{ left: fly.left, top: fly.top, animationDelay: fly.delay }}
-        />
-      ))}
+      <Fireflies />
     </div>
   );
 }
