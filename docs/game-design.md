@@ -189,7 +189,7 @@ no "invisible plumbing only" phases. Build and review one phase at a time.
 - [x] **Phase 1 — Title Screen & Jungle Look** 🌴
       Illustrated cartoon jungle title screen, logo, dragon mascot, "Begin
       Adventure" button. Zero game logic — pure visual foundation.
-- [ ] **Phase 2 — Walk Through the Jungle** 🥾
+- [x] **Phase 2 — Walk Through the Jungle** 🥾
       First-person scene navigation shell (click + arrow keys), 2-3 connected
       placeholder scenes proving the "jungle changes as you walk" trick works.
 - [ ] **Phase 3 — Follow the Clues** 🐾
